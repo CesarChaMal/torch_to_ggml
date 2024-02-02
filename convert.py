@@ -135,55 +135,87 @@ struct {model_name}* {model_name}_model_load(const char *model_file, mnist_model
     return code
 
 
-def convert(model_path, model_name=DEFAULT_MODEL_NAME):
-    if model_name == DEFAULT_MODEL_NAME:
-        print(f"Warning: no provided model_name, default={DEFAULT_MODEL_NAME}")
+# def convert(model_path, model_name=DEFAULT_MODEL_NAME):
+#     if model_name == DEFAULT_MODEL_NAME:
+#         print(f"Warning: no provided model_name, default={DEFAULT_MODEL_NAME}")
+#
+#     state_dict = torch.load(model_path, map_location="cpu")
+#     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items() if "module." in k}
+#
+#     code = c_gen(state_dict, model_name)
+#     c_output_path = f"./{model_name}.c"
+#     with open(c_output_path, "w") as f:
+#         f.write(code)
+#         print(f"Model ggml code generated and saved to '{c_output_path}'")
+#
+#     gguf_output_path = f"./{model_name}.gguf"
+#     gguf_writer = gguf.GGUFWriter(gguf_output_path, model_name)
+#     for param_name, param_value in state_dict.items():
+#         gguf_writer.add_tensor(param_name, param_value.numpy())
+#
+#     # kernel1 = model.layers[0].weights[0].numpy()
+#     # kernel1 = np.moveaxis(kernel1, [2, 3], [0, 1])
+#     # kernel1 = kernel1.astype(np.float16)
+#     # gguf_writer.add_tensor("kernel1", kernel1, raw_shape=(32, 1, 3, 3))
+#     #
+#     # bias1 = model.layers[0].weights[1].numpy()
+#     # bias1 = np.repeat(bias1, 26 * 26)
+#     # gguf_writer.add_tensor("bias1", bias1, raw_shape=(1, 32, 26, 26))
+#     #
+#     # kernel2 = model.layers[2].weights[0].numpy()
+#     # kernel2 = np.moveaxis(kernel2, [0, 1, 2, 3], [2, 3, 1, 0])
+#     # kernel2 = kernel2.astype(np.float16)
+#     # gguf_writer.add_tensor("kernel2", kernel2, raw_shape=(64, 32, 3, 3))
+#     #
+#     # bias2 = model.layers[2].weights[1].numpy()
+#     # bias2 = np.repeat(bias2, 11 * 11)
+#     # gguf_writer.add_tensor("bias2", bias2, raw_shape=(1, 64, 11, 11))
+#     #
+#     # dense_w = model.layers[-1].weights[0].numpy()
+#     # dense_w = dense_w.transpose()
+#     # gguf_writer.add_tensor("dense_w", dense_w, raw_shape=(10, 1600))
+#     #
+#     # dense_b = model.layers[-1].weights[1].numpy()
+#     # gguf_writer.add_tensor("dense_b", dense_b)
+#
+#     gguf_writer.write_header_to_file()
+#     gguf_writer.write_kv_data_to_file()
+#     gguf_writer.write_tensors_to_file()
+#     gguf_writer.close()
+#     print(f"Model converted and saved to '{gguf_output_path}'")
 
+def convert(model_path, model_name="untitled_model"):
+    print(f"Converting model: {model_name}")
+
+    # Load the state dict from the PyTorch model
     state_dict = torch.load(model_path, map_location="cpu")
-    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items() if "module." in k}
 
-    code = c_gen(state_dict, model_name)
-    c_output_path = f"./{model_name}.c"
-    with open(c_output_path, "w") as f:
-        f.write(code)
-        print(f"Model ggml code generated and saved to '{c_output_path}'")
+    # No filtering based on "module."; include all parameters
+    # state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
+    # Debugging: Check parameter count
+    print(f"Number of parameters: {len(state_dict)}")
+
+    # Initialize GGUFWriter
     gguf_output_path = f"./{model_name}.gguf"
     gguf_writer = gguf.GGUFWriter(gguf_output_path, model_name)
+
+    # Process each parameter
     for param_name, param_value in state_dict.items():
-        gguf_writer.add_tensor(param_name, param_value.numpy())
+        tensor_data = param_value.numpy()
 
-    # kernel1 = model.layers[0].weights[0].numpy()
-    # kernel1 = np.moveaxis(kernel1, [2, 3], [0, 1])
-    # kernel1 = kernel1.astype(np.float16)
-    # gguf_writer.add_tensor("kernel1", kernel1, raw_shape=(32, 1, 3, 3))
-    #
-    # bias1 = model.layers[0].weights[1].numpy()
-    # bias1 = np.repeat(bias1, 26 * 26)
-    # gguf_writer.add_tensor("bias1", bias1, raw_shape=(1, 32, 26, 26))
-    #
-    # kernel2 = model.layers[2].weights[0].numpy()
-    # kernel2 = np.moveaxis(kernel2, [0, 1, 2, 3], [2, 3, 1, 0])
-    # kernel2 = kernel2.astype(np.float16)
-    # gguf_writer.add_tensor("kernel2", kernel2, raw_shape=(64, 32, 3, 3))
-    #
-    # bias2 = model.layers[2].weights[1].numpy()
-    # bias2 = np.repeat(bias2, 11 * 11)
-    # gguf_writer.add_tensor("bias2", bias2, raw_shape=(1, 64, 11, 11))
-    #
-    # dense_w = model.layers[-1].weights[0].numpy()
-    # dense_w = dense_w.transpose()
-    # gguf_writer.add_tensor("dense_w", dense_w, raw_shape=(10, 1600))
-    #
-    # dense_b = model.layers[-1].weights[1].numpy()
-    # gguf_writer.add_tensor("dense_b", dense_b)
+        # Debugging: Log parameter size
+        print(f"Processing {param_name}: shape {tensor_data.shape}, dtype {tensor_data.dtype}")
 
+        # Add tensor to GGUFWriter
+        gguf_writer.add_tensor(param_name, tensor_data)
+
+    # Write data to .gguf file
     gguf_writer.write_header_to_file()
     gguf_writer.write_kv_data_to_file()
     gguf_writer.write_tensors_to_file()
     gguf_writer.close()
     print(f"Model converted and saved to '{gguf_output_path}'")
-
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
